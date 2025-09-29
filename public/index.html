@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>WebSocket Chat</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>WebSocket Chat & File Share</h1>
+            <div id="status" class="disconnected">Connecting...</div>
+            <div style="margin-top: 10px; color: var(--text-secondary);">
+                Client ID: <span id="clientId">-</span> | Mode: <span id="currentMode">Broadcast</span>
+            </div>
+        </div>
+        
+        <div class="main-content">
+            <div class="controls-panel">
+                <div class="control-section">
+                    <h3>Message Mode</h3>
+                    <div class="mode-selector">
+                        <button class="mode-btn active" data-mode="broadcast">Broadcast</button>
+                        <button class="mode-btn" data-mode="private">Private</button>
+                    </div>
+                    
+                    <div id="clientListSection" style="display: none;">
+                        <div class="input-label">Select Target:</div>
+                        <div class="client-list" id="clientList"></div>
+                        <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.5rem;">
+                            Selected: <span id="selectedClient">None</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="control-section">
+                    <h3>Send Message</h3>
+                    <div class="input-group">
+                        <input type="text" id="msg" placeholder="Type message..." />
+                        <button onclick="sendText()" id="sendBtn">Send to All</button>
+                    </div>
+                </div>
+                
+                <div class="control-section">
+                    <h3>File Share</h3>
+                    <div class="input-group">
+                        <input type="file" id="file" />
+                        <button onclick="sendFile()" id="sendFileBtn">Send File</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="messages-panel">
+                <h3>Messages</h3>
+                <textarea id="chat" readonly placeholder="Messages will appear here..."></textarea>
+                <div class="download-area">
+                    <div class="download-header">Download:</div>
+                    <div class="download-links" id="downloadLinks">
+                        <span class="no-downloads">No files available</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
