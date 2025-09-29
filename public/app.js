@@ -107,12 +107,17 @@ function handleMessage(evt) {
         addMessage(`${prefix} [${time}] Client ${msg.from}: ${msg.message}`);
         break;
 
-      case "file":
+      case "file_info":
         const filePrefix = msg.isPrivate ? "[PRIVATE FILE]" : "[PUBLIC FILE]";
         addMessage(
-          `${filePrefix} [${time}] Client ${msg.from} sent: ${msg.filename}`
+          `${filePrefix} [${time}] Client ${msg.from} will send: ${msg.filename}`
         );
-        createDownloadLink(msg.filename, msg.data, msg.size);
+        // Simpan info file untuk isi binary data (file) yang masuk nanti
+        window.expectedFile = {
+          filename: msg.filename,
+          size: msg.size,
+          from: msg.from,
+        };
         break;
 
       case "client_list":
@@ -120,11 +125,16 @@ function handleMessage(evt) {
         break;
     }
   } else {
-    // File binary yang diterima langsung
     const size = evt.data.byteLength;
-    addMessage(`Received file (${formatSize(size)})`);
-    createDownloadLink(`file_${Date.now()}`, evt.data, size);
-  }
+    if (window.expectedFile) {
+        addMessage(`Received file: ${window.expectedFile.filename} from Client ${window.expectedFile.from}`);
+        createDownloadLink(window.expectedFile.filename, evt.data, size);
+        delete window.expectedFile; 
+    } else {
+        addMessage(`Received file (${size} bytes)`);
+        createDownloadLink(`file_${Date.now()}`, evt.data, size);
+    }
+    }
 }
 
 // Tambah pesan ke area chat
@@ -200,53 +210,41 @@ window.sendFile = function () {
     return;
   }
 
+  // Kirim info file dulu sebagai JSON
+  ws.send(JSON.stringify({
+    type: "file_info",
+    filename: file.name,
+    size: file.size,
+    isPrivate: messageMode === "private",
+    targetClient: selectedTarget,
+  }));
+
+  // kirim file sebagai binary ArrayBuffer
   const reader = new FileReader();
   reader.onload = (e) => {
     const arrayBuffer = e.target.result;
-    const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
-
-    ws.send(
-      JSON.stringify({
-        type: "file",
-        filename: file.name,
-        size: file.size,
-        data: base64,
-        isPrivate: messageMode === "private",
-        targetClient: selectedTarget,
-      })
-    );
+    ws.send(arrayBuffer);
 
     const prefix =
       messageMode === "private"
         ? `[PRIVATE to Client ${selectedTarget}]`
         : "[BROADCAST]";
     addMessage(`${prefix} Sent file: ${file.name}`);
-    createDownloadLink(file.name, base64, file.size);
+    createDownloadLink(file.name, arrayBuffer, file.size);
   };
 
   reader.readAsArrayBuffer(file);
   document.getElementById("file").value = "";
 };
 
+
 // Buat link download untuk file
 function createDownloadLink(filename, data, size) {
-  // Convert data ke Blob object
-  const blob =
-    typeof data === "string"
-      ? new Blob([
-          new Uint8Array(
-            atob(data) 
-              .split("")
-              .map((c) => c.charCodeAt(0))
-          ),
-        ])
-      : new Blob([data]); 
-
+  const blob = new Blob([data]);
   const url = URL.createObjectURL(blob);
   const noDownloads = elements.downloadLinks.querySelector(".no-downloads");
   if (noDownloads) noDownloads.remove();
 
-  // Buat elemen link download
   const link = document.createElement("a");
   link.href = url;
   link.download = filename;
@@ -255,7 +253,6 @@ function createDownloadLink(filename, data, size) {
 
   elements.downloadLinks.appendChild(link);
 
-  // Maksimal 10 link
   const links = elements.downloadLinks.querySelectorAll(".download-link");
   if (links.length > 10) links[0].remove();
 }

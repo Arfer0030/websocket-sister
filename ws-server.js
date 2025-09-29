@@ -8,7 +8,7 @@ const app = express();
 const server = http.createServer(app);
 app.use(express.static(path.join(__dirname, "public")));
 
-// untuk mendapatkan IP lokal
+// Fungsi buat dapet IP lokal
 function getLocalIP() {
   const networkInterfaces = os.networkInterfaces();
   const candidates = [];
@@ -60,7 +60,7 @@ wss.on("connection", (ws, req) => {
       switch (message.type) {
         // buat pesan teks
         case "text":
-            // kirim pesan ke client tertentu
+          // kirim pesan ke client tertentu
           if (message.isPrivate && message.targetClient) {
             const targetClient = clients.get(parseInt(message.targetClient));
             if (targetClient && targetClient.readyState === WebSocket.OPEN) {
@@ -94,22 +94,29 @@ wss.on("connection", (ws, req) => {
             });
           }
           break;
-        // buat pesan file 
-        case "file":
-          const fileData = {
-            type: "file",
+        // buat pesan file dikirim metadata/info binary data (file) dulu
+        case "file_info":
+          ws.fileInfo = {
+            filename: message.filename,
+            size: message.size,
+            isPrivate: message.isPrivate,
+            targetClient: message.targetClient,
+            from: currentClientId,
+          };
+
+          const fileInfoData = {
+            type: "file_info",
             from: currentClientId,
             filename: message.filename,
             size: message.size,
-            data: message.data,
             isPrivate: message.isPrivate || false,
             timestamp: new Date().toISOString(),
           };
-        // kirim file ke client tertentu
+
           if (message.isPrivate && message.targetClient) {
             const targetClient = clients.get(parseInt(message.targetClient));
             if (targetClient && targetClient.readyState === WebSocket.OPEN) {
-              targetClient.send(JSON.stringify(fileData));
+              targetClient.send(JSON.stringify(fileInfoData));
             }
           } else {
             clients.forEach((client, id) => {
@@ -117,23 +124,43 @@ wss.on("connection", (ws, req) => {
                 id !== currentClientId &&
                 client.readyState === WebSocket.OPEN
               ) {
-                client.send(JSON.stringify(fileData));
+                client.send(JSON.stringify(fileInfoData));
               }
             });
           }
           break;
+
         case "ping":
           ws.send(JSON.stringify({ type: "pong" }));
           break;
       }
-    } catch (error) {
-      if (data instanceof Buffer) {
-        clients.forEach((client, id) => {
-          if (id !== currentClientId && client.readyState === WebSocket.OPEN) {
-            client.send(data);
-          }
-        });
-      }
+    }  catch (error) {
+        // Handle isi binary data (file)
+        if (data instanceof Buffer) {
+            const fileInfo = ws.fileInfo;
+            if (fileInfo) {
+            if (fileInfo.isPrivate && fileInfo.targetClient) {
+                const targetClient = clients.get(parseInt(fileInfo.targetClient));
+                if (targetClient && targetClient.readyState === WebSocket.OPEN) {
+                targetClient.send(data);
+                }
+            } else {
+                clients.forEach((client, id) => {
+                if (id !== currentClientId && client.readyState === WebSocket.OPEN) {
+                    client.send(data);
+                }
+                });
+            }
+            delete ws.fileInfo;
+            } else {
+            // Fallback untuk binary data tanpa info
+            clients.forEach((client, id) => {
+                if (id !== currentClientId && client.readyState === WebSocket.OPEN) {
+                client.send(data);
+                }
+            });
+            }
+        }
     }
   });
 
